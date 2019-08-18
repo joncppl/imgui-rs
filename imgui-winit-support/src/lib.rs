@@ -68,10 +68,12 @@
 use imgui::{self, BackendFlags, ConfigFlags, Context, ImString, Io, Key, Ui};
 use std::cmp::Ordering;
 use winit::dpi::{LogicalPosition, LogicalSize};
-use winit::{
-    DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, MouseCursor, MouseScrollDelta,
-    TouchPhase, VirtualKeyCode, Window, WindowEvent,
-};
+// use winit::{
+    // DeviceEvent, ElementState, Event, KeyboardInput, MouseButton, MouseCursor, MouseScrollDelta,
+    // TouchPhase, VirtualKeyCode, Window, WindowEvent,
+// };
+use winit::window::Window;
+use winit::event::{DeviceEvent, VirtualKeyCode, ElementState, Event, KeyboardInput, MouseButton, MouseScrollDelta, TouchPhase, WindowEvent,};
 
 /// winit backend platform state
 #[derive(Debug)]
@@ -169,14 +171,13 @@ impl WinitPlatform {
     /// * framebuffer scale (= DPI factor) is set
     /// * display size is set
     pub fn attach_window(&mut self, io: &mut Io, window: &Window, hidpi_mode: HiDpiMode) {
-        let (hidpi_mode, hidpi_factor) = hidpi_mode.apply(window.get_hidpi_factor());
+        let (hidpi_mode, hidpi_factor) = hidpi_mode.apply(window.hidpi_factor());
         self.hidpi_mode = hidpi_mode;
         self.hidpi_factor = hidpi_factor;
         io.display_framebuffer_scale = [hidpi_factor as f32, hidpi_factor as f32];
-        if let Some(logical_size) = window.get_inner_size() {
-            let logical_size = self.scale_size_from_winit(window, logical_size);
-            io.display_size = [logical_size.width as f32, logical_size.height as f32];
-        }
+        let logical_size = window.inner_size();
+        let logical_size = self.scale_size_from_winit(window, logical_size);
+        io.display_size = [logical_size.width as f32, logical_size.height as f32];
     }
     /// Returns the current DPI factor.
     ///
@@ -192,7 +193,7 @@ impl WinitPlatform {
         match self.hidpi_mode {
             ActiveHiDpiMode::Default => logical_size,
             _ => logical_size
-                .to_physical(window.get_hidpi_factor())
+                .to_physical(window.hidpi_factor())
                 .to_logical(self.hidpi_factor),
         }
     }
@@ -208,7 +209,7 @@ impl WinitPlatform {
         match self.hidpi_mode {
             ActiveHiDpiMode::Default => logical_pos,
             _ => logical_pos
-                .to_physical(window.get_hidpi_factor())
+                .to_physical(window.hidpi_factor())
                 .to_logical(self.hidpi_factor),
         }
     }
@@ -225,7 +226,7 @@ impl WinitPlatform {
             ActiveHiDpiMode::Default => logical_pos,
             _ => logical_pos
                 .to_physical(self.hidpi_factor)
-                .to_logical(window.get_hidpi_factor()),
+                .to_logical(window.hidpi_factor()),
         }
     }
     /// Handles a winit event.
@@ -235,7 +236,7 @@ impl WinitPlatform {
     /// * window size / dpi factor changes are applied
     /// * keyboard state is updated
     /// * mouse state is updated
-    pub fn handle_event(&mut self, io: &mut Io, window: &Window, event: &Event) {
+    pub fn handle_event(&mut self, io: &mut Io, window: &Window, event: &Event<()>) {
         match *event {
             Event::WindowEvent {
                 window_id,
@@ -289,10 +290,9 @@ impl WinitPlatform {
                 self.hidpi_factor = hidpi_factor;
                 io.display_framebuffer_scale = [hidpi_factor as f32, hidpi_factor as f32];
                 // Window size might change too if we are using DPI rounding
-                if let Some(logical_size) = window.get_inner_size() {
-                    let logical_size = self.scale_size_from_winit(window, logical_size);
-                    io.display_size = [logical_size.width as f32, logical_size.height as f32];
-                }
+                let logical_size = window.inner_size();
+                let logical_size = self.scale_size_from_winit(window, logical_size);
+                io.display_size = [logical_size.width as f32, logical_size.height as f32];
             }
             WindowEvent::KeyboardInput {
                 input:
@@ -365,7 +365,10 @@ impl WinitPlatform {
                 window,
                 LogicalPosition::new(f64::from(io.mouse_pos[0]), f64::from(io.mouse_pos[1])),
             );
-            window.set_cursor_position(logical_pos)
+            match window.set_cursor_position(logical_pos) {
+                Ok(_) => return Ok(()),
+                Err(e) => return Err(format!("{}", e))
+            }
         } else {
             Ok(())
         }
@@ -382,22 +385,22 @@ impl WinitPlatform {
             .config_flags
             .contains(ConfigFlags::NO_MOUSE_CURSOR_CHANGE)
         {
-            match ui.mouse_cursor() {
-                Some(mouse_cursor) if !io.mouse_draw_cursor => {
-                    window.hide_cursor(false);
-                    window.set_cursor(match mouse_cursor {
-                        imgui::MouseCursor::Arrow => MouseCursor::Arrow,
-                        imgui::MouseCursor::TextInput => MouseCursor::Text,
-                        imgui::MouseCursor::ResizeAll => MouseCursor::Move,
-                        imgui::MouseCursor::ResizeNS => MouseCursor::NsResize,
-                        imgui::MouseCursor::ResizeEW => MouseCursor::EwResize,
-                        imgui::MouseCursor::ResizeNESW => MouseCursor::NeswResize,
-                        imgui::MouseCursor::ResizeNWSE => MouseCursor::NwseResize,
-                        imgui::MouseCursor::Hand => MouseCursor::Hand,
-                    });
-                }
-                _ => window.hide_cursor(true),
-            }
+            // match ui.mouse_cursor() {
+            //     Some(mouse_cursor) if !io.mouse_draw_cursor => {
+            //         window.hide_cursor(false);
+            //         window.set_cursor(match mouse_cursor {
+            //             imgui::MouseCursor::Arrow => MouseCursor::Arrow,
+            //             imgui::MouseCursor::TextInput => MouseCursor::Text,
+            //             imgui::MouseCursor::ResizeAll => MouseCursor::Move,
+            //             imgui::MouseCursor::ResizeNS => MouseCursor::NsResize,
+            //             imgui::MouseCursor::ResizeEW => MouseCursor::EwResize,
+            //             imgui::MouseCursor::ResizeNESW => MouseCursor::NeswResize,
+            //             imgui::MouseCursor::ResizeNWSE => MouseCursor::NwseResize,
+            //             imgui::MouseCursor::Hand => MouseCursor::Hand,
+            //         });
+            //     }
+            //     _ => window.hide_cursor(true),
+            // }
         }
     }
 }
